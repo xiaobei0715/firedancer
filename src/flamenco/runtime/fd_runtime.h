@@ -330,17 +330,29 @@ fd_runtime_update_leaders( fd_exec_slot_ctx_t * slot_ctx,
                            fd_spad_t *          runtime_spad );
 
 int
-fd_runtime_sysvar_cache_load( fd_exec_slot_ctx_t * slot_ctx );
+fd_runtime_sysvar_cache_load( fd_exec_slot_ctx_t * slot_ctx,
+                              fd_spad_t *          runtime_spad );
 
 /* TODO: Invoked by fd_executor: layering violation. Rent logic is deprecated
    and will be torn out entirely very soon. */
 ulong
-fd_runtime_collect_rent_from_account( fd_slot_bank_t const *  slot_bank,
-                                      fd_epoch_bank_t const * epoch_bank,
-                                      fd_features_t *         features,
-                                      fd_account_meta_t *     acc,
-                                      fd_pubkey_t const *     key,
-                                      ulong                   epoch );
+fd_runtime_collect_rent_from_account( ulong                       slot,
+                                      fd_epoch_schedule_t const * schedule,
+                                      fd_rent_t const *           rent,
+                                      double                      slots_per_year,
+                                      fd_features_t *             features,
+                                      fd_account_meta_t *         acc,
+                                      fd_pubkey_t const *         key,
+                                      ulong                       epoch );
+
+void
+fd_runtime_update_slots_per_epoch( fd_exec_slot_ctx_t * slot_ctx,
+                                   ulong                slots_per_epoch,
+                                   fd_spad_t *          runtime_spad );
+
+void
+fd_runtime_register_new_fresh_account( fd_exec_slot_ctx_t * slot_ctx,
+                                       fd_pubkey_t const  * pubkey );
 
 /* Block Level Execution Prep/Finalize ****************************************/
 
@@ -469,7 +481,7 @@ fd_runtime_is_epoch_boundary( fd_epoch_bank_t * epoch_bank,
    that we modify when processing a new epoch need to be hashed into
    the bank hash.
  */
-int
+void
 fd_runtime_block_pre_execute_process_new_epoch( fd_exec_slot_ctx_t * slot_ctx,
                                                 fd_tpool_t *         tpool,
                                                 fd_spad_t * *        exec_spads,
@@ -513,6 +525,15 @@ fd_runtime_block_eval_tpool( fd_exec_slot_ctx_t * slot_ctx,
                              fd_spad_t * *        spads,
                              ulong                spads_cnt,
                              fd_spad_t *          runtime_spad );
+
+int
+fd_runtime_block_execute_tpool( fd_exec_slot_ctx_t *            slot_ctx,
+                                fd_capture_ctx_t *              capture_ctx,
+                                fd_runtime_block_info_t const * block_info,
+                                fd_tpool_t *                    tpool,
+                                fd_spad_t * *                   exec_spads,
+                                ulong                           exec_spad_cnt,
+                                fd_spad_t *                     runtime_spad );
 
 /* Genesis ********************************************************************/
 

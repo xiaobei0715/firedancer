@@ -72,6 +72,7 @@ struct fd_ledger_args {
 
   int                   dump_insn_to_pb;         /* instruction dumping: should insns be dumped */
   int                   dump_txn_to_pb;          /* txn dumping: should txns be dumped */
+  int                   dump_block_to_pb;        /* block dumping: should blocks be dumped */
   ulong                 dump_proto_start_slot;   /* instruction / txn dumping: what slot to start dumping*/
   char const *          dump_proto_sig_filter;   /* instruction / txn dumping: specify txn sig to dump at */
   char const *          dump_proto_output_dir;   /* instruction / txn dumping: output directory for protobuf messages */
@@ -99,7 +100,6 @@ struct fd_ledger_args {
 
   /* These values are setup and maintained before replay */
   fd_capture_ctx_t *    capture_ctx;             /* capture_ctx is used in runtime_replay for various debugging tasks */
-  fd_acc_mgr_t          acc_mgr[ 1UL ];          /* funk wrapper*/
   fd_exec_slot_ctx_t *  slot_ctx;                /* slot_ctx */
   fd_exec_epoch_ctx_t * epoch_ctx;               /* epoch_ctx */
   fd_tpool_t *          tpool;                   /* thread pool for execution */
@@ -685,7 +685,7 @@ fd_ledger_main_setup( fd_ledger_args_t * args ) {
   int has_solcap           = args->capture_fpath && args->capture_fpath[0] != '\0';
   int has_checkpt          = args->checkpt_path && args->checkpt_path[0] != '\0';
   int has_checkpt_funk     = args->checkpt_funk && args->checkpt_funk[0] != '\0';
-  int has_dump_to_protobuf = args->dump_insn_to_pb || args->dump_txn_to_pb;
+  int has_dump_to_protobuf = args->dump_insn_to_pb || args->dump_txn_to_pb || args->dump_block_to_pb;
 
   if( has_solcap || has_checkpt || has_checkpt_funk || has_dump_to_protobuf ) {
     FILE * capture_file = NULL;
@@ -715,6 +715,7 @@ fd_ledger_main_setup( fd_ledger_args_t * args ) {
     if( has_dump_to_protobuf ) {
       args->capture_ctx->dump_insn_to_pb       = args->dump_insn_to_pb;
       args->capture_ctx->dump_txn_to_pb        = args->dump_txn_to_pb;
+      args->capture_ctx->dump_block_to_pb      = args->dump_block_to_pb;
       args->capture_ctx->dump_proto_sig_filter = args->dump_proto_sig_filter;
       args->capture_ctx->dump_proto_output_dir = args->dump_proto_output_dir;
       args->capture_ctx->dump_proto_start_slot = args->dump_proto_start_slot;
@@ -725,6 +726,9 @@ fd_ledger_main_setup( fd_ledger_args_t * args ) {
   args->slot_ctx->incremental_freq   = args->incremental_freq;
   args->slot_ctx->last_snapshot_slot = 0UL;
   args->last_snapshot_slot           = 0UL;
+
+  args->slot_ctx->runtime_wksp = fd_wksp_containing( args->runtime_spad );
+  FD_TEST( args->slot_ctx->runtime_wksp );
 
   /* Finish other runtime setup steps */
   fd_features_restore( args->slot_ctx, args->runtime_spad );
@@ -738,7 +742,7 @@ fd_ledger_main_setup( fd_ledger_args_t * args ) {
   /* First, load in the sysvars into the sysvar cache. This is required to
       make the StakeHistory sysvar available to the rewards calculation. */
 
-  fd_runtime_sysvar_cache_load( args->slot_ctx );
+  fd_runtime_sysvar_cache_load( args->slot_ctx, args->runtime_spad );
 
   /* After both snapshots have been loaded in, we can determine if we should
       start distributing rewards. */
@@ -1108,8 +1112,8 @@ ingest( fd_ledger_args_t * args ) {
   slot_ctx->epoch_ctx = epoch_ctx;
   args->slot_ctx = slot_ctx;
 
-  fd_acc_mgr_t mgr[1];
-  slot_ctx->acc_mgr = fd_acc_mgr_new( mgr, funk );
+  uchar * acc_mgr_mem  = fd_spad_alloc( args->runtime_spad, alignof(fd_acc_mgr_t), sizeof(fd_acc_mgr_t) );
+  slot_ctx->acc_mgr    = fd_acc_mgr_new( acc_mgr_mem, funk );
   slot_ctx->blockstore = args->blockstore;
 
   if( args->status_cache_wksp ) {
@@ -1282,7 +1286,8 @@ replay( fd_ledger_args_t * args ) {
   void * slot_ctx_mem        = fd_spad_alloc( spad, FD_EXEC_SLOT_CTX_ALIGN, FD_EXEC_SLOT_CTX_FOOTPRINT );
   args->slot_ctx             = fd_exec_slot_ctx_join( fd_exec_slot_ctx_new( slot_ctx_mem, spad ) );
   args->slot_ctx->epoch_ctx  = args->epoch_ctx;
-  args->slot_ctx->acc_mgr    = fd_acc_mgr_new( args->acc_mgr, funk );
+  uchar * acc_mgr_mem  = fd_spad_alloc( args->runtime_spad, alignof(fd_acc_mgr_t), sizeof(fd_acc_mgr_t) );
+  args->slot_ctx->acc_mgr    = fd_acc_mgr_new( acc_mgr_mem, funk );
   args->slot_ctx->blockstore = args->blockstore;
 
   void * status_cache_mem = fd_spad_alloc( spad,
@@ -1405,6 +1410,7 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   int          abort_on_mismatch     = fd_env_strip_cmdline_int   ( &argc, &argv, "--abort-on-mismatch",     NULL, 1                                                  );
   int          dump_insn_to_pb       = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-insn-to-pb",       NULL, 0                                                  );
   int          dump_txn_to_pb        = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-txn-to-pb",        NULL, 0                                                  );
+  int          dump_block_to_pb      = fd_env_strip_cmdline_int   ( &argc, &argv, "--dump-block-to-pb",      NULL, 0                                                  );
   ulong        dump_proto_start_slot = fd_env_strip_cmdline_ulong ( &argc, &argv, "--dump-proto-start-slot", NULL, 0                                                  );
   char const * dump_proto_sig_filter = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--dump-proto-sig-filter", NULL, NULL                                               );
   char const * dump_proto_output_dir = fd_env_strip_cmdline_cstr  ( &argc, &argv, "--dump-proto-output-dir", NULL, NULL                                               );
@@ -1511,6 +1517,7 @@ initial_setup( int argc, char ** argv, fd_ledger_args_t * args ) {
   args->abort_on_mismatch       = abort_on_mismatch;
   args->dump_insn_to_pb         = dump_insn_to_pb;
   args->dump_txn_to_pb          = dump_txn_to_pb;
+  args->dump_block_to_pb        = dump_block_to_pb;
   args->dump_proto_start_slot   = dump_proto_start_slot;
   args->dump_proto_sig_filter   = dump_proto_sig_filter;
   args->dump_proto_output_dir   = dump_proto_output_dir;

@@ -3,7 +3,7 @@
 #error "Include fd_features.h instead of this file."
 #endif
 /* FEATURE_ID_CNT is the number of features in ids */
-#define FD_FEATURE_ID_CNT (227UL)
+#define FD_FEATURE_ID_CNT (228UL)
 union fd_features {
   ulong f[ FD_FEATURE_ID_CNT ];
   struct {
@@ -211,7 +211,7 @@ union fd_features {
     /* 0x0b9047b5bb9ef961 */ ulong move_stake_and_move_lamports_ixs;
     /* 0xa5a66405d0ab6309 */ ulong deprecate_legacy_vote_ixs;
     /* 0x81fcbfa0d0f6b105 */ ulong partitioned_epoch_rewards_superfeature;
-    /* 0x2c38e34ff071060d */ ulong enable_secp256r1_precompile;
+    /* 0x0757d3be218c070d */ ulong enable_secp256r1_precompile;
     /* 0x829062f252ef5ba8 */ ulong get_sysvar_syscall_enabled;
     /* 0x1db51f609c8fcd07 */ ulong disable_sbpf_v0_execution;
     /* 0xe5937c9dd5edd306 */ ulong reenable_sbpf_v0_execution;
@@ -227,12 +227,13 @@ union fd_features {
     /* 0x8c012a2071caecd9 */ ulong remove_accounts_executable_flag_checks;
     /* 0x54c5c5132eaae808 */ ulong fix_alt_bn128_multiplication_input_length;
     /* 0x9e65a24bcb41d3f6 */ ulong lift_cpi_caller_restriction;
-    /* 0xaabdffec3f061805 */ ulong accounts_lt_hash;
+    /* 0xdaaca2a2c8c1fb04 */ ulong accounts_lt_hash;
     /* 0x01c747ea6424fc04 */ ulong remove_accounts_delta_hash;
     /* 0x56b57bbf5f6afc04 */ ulong snapshots_lt_hash;
     /* 0xc66648576f67b1a5 */ ulong reserve_minimal_cus_for_builtin_instructions;
     /* 0x08dc7e6d724d4e47 */ ulong raise_block_limits_to_50m;
     /* 0x8ef4f4fdbc3d6c85 */ ulong move_precompile_verification_to_svm;
     /* 0xd571e3dc9532c905 */ ulong enable_transaction_loading_failure_fees;
+    /* 0x4d86ca23d81d6d11 */ ulong disable_partitioned_rent_collection;
   };
 };
