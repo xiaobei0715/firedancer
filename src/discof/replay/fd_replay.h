@@ -136,13 +136,15 @@ typedef struct fd_replay_slice fd_replay_slice_t;
 #define DEQUE_T    ulong
 #include "../../util/tmpl/fd_deque_dynamic.c"
 
-#define MAP_NAME    fd_replay_slice_map
-#define MAP_T       fd_replay_slice_t
-#define MAP_KEY     slot
-#define MAP_MEMOIZE 0
+#define MAP_NAME         fd_replay_slice_map
+#define MAP_T            fd_replay_slice_t
+#define MAP_KEY          slot
+#define MAP_KEY_NULL     ULONG_MAX
+#define MAP_KEY_INVAL(k) ((k)==ULONG_MAX)
+#define MAP_MEMOIZE      0
 #include "../../util/tmpl/fd_map_dynamic.c"
 
-#define FD_REPLAY_MAGIC (0xf17eda2ce77e91a70UL) /* firedancer replay version 0 */
+#define FD_REPLAY_MAGIC (0xf17eda2ce77e91a7UL) /* firedancer replay version 0 */
 
 /* fd_replay_t is the top-level structure that maintains an LRU cache
    (pool, dlist, map) of the outstanding block slices that need replay.
@@ -164,11 +166,14 @@ struct __attribute__((aligned(128UL))) fd_replay {
   /* Track block slices to be replayed. */
 
   fd_replay_slice_t * slice_map;
-  void *              slice_deques; /* buffer of contiguous deques of ulongs */
 
   /* Buffer to hold the block slice. */
 
   uchar *             slice_buf;
+
+  /* Magic number to verify the replay structure. */
+
+  ulong               magic;
 };
 typedef struct fd_replay fd_replay_t;
 
@@ -178,7 +183,7 @@ FD_PROTOTYPES_BEGIN
 
 /* fd_replay_{align,footprint} return the required alignment and
    footprint of a memory region suitable for use as replay with up to
-   slice_max slices and vote_max votes. */
+   slice_max slices and block_max blocks. */
 
 FD_FN_CONST static inline ulong
 fd_replay_align( void ) {
@@ -250,7 +255,7 @@ fd_replay_fec_query( fd_replay_t * replay, ulong slot, uint fec_set_idx ) {
   return fd_replay_fec_map_query( replay->fec_map, key, NULL );
 }
 
-/* fd_replay_fec_query inserts and returns a new in-progress FEC set
+/* fd_replay_fec_insert inserts and returns a new in-progress FEC set
    keyed by slot and fec_set_idx into the map.  Returns NULL if the map
    is full. */
 

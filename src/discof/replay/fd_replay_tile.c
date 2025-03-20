@@ -340,7 +340,6 @@ scratch_footprint( fd_topo_tile_t const * tile FD_PARAM_UNUSED ) {
   ulong l = FD_LAYOUT_INIT;
   l = FD_LAYOUT_APPEND( l, alignof(fd_replay_tile_ctx_t), sizeof(fd_replay_tile_ctx_t) );
   l = FD_LAYOUT_APPEND( l, fd_alloc_align(), fd_alloc_footprint() );
-  l = FD_LAYOUT_APPEND( l, FD_ACC_MGR_ALIGN, FD_ACC_MGR_FOOTPRINT );
   l = FD_LAYOUT_APPEND( l, FD_CAPTURE_CTX_ALIGN, FD_CAPTURE_CTX_FOOTPRINT );
   l = FD_LAYOUT_APPEND( l, fd_epoch_align(), fd_epoch_footprint( FD_VOTER_MAX ) );
   l = FD_LAYOUT_APPEND( l, fd_forks_align(), fd_forks_footprint( FD_BLOCK_MAX ) );
@@ -1345,6 +1344,7 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
     FD_LOG_ERR(( "couldn't compute tick height/max tick height slot %lu ticks_per_slot %lu", curr_slot, epoch_bank->ticks_per_slot ));
   }
   fork->slot_ctx.enable_exec_recording = ctx->tx_metadata_storage;
+  fork->slot_ctx.runtime_wksp          = fd_wksp_containing( ctx->runtime_spad );
 
   /* NOTE: By commenting this out, we don't support forking at the epoch boundary
      but this code is buggy and leads to crashes. */
@@ -1379,13 +1379,11 @@ prepare_new_block_execution( fd_replay_tile_ctx_t * ctx,
   fork->slot_ctx.funk_txn = fd_funk_txn_prepare(ctx->funk, fork->slot_ctx.funk_txn, &xid, 1);
   fd_funk_end_write( ctx->funk );
 
-  if( FD_UNLIKELY( FD_RUNTIME_EXECUTE_SUCCESS != fd_runtime_block_pre_execute_process_new_epoch( &fork->slot_ctx,
-                                                                                                 ctx->tpool,
-                                                                                                 ctx->exec_spads,
-                                                                                                 ctx->exec_spad_cnt,
-                                                                                                 ctx->runtime_spad ) ) ) {
-    FD_LOG_ERR(( "couldn't process new epoch" ));
-  }
+  fd_runtime_block_pre_execute_process_new_epoch( &fork->slot_ctx,
+                                                  ctx->tpool,
+                                                  ctx->exec_spads,
+                                                  ctx->exec_spad_cnt,
+                                                  ctx->runtime_spad );
 
   /* We want to push on a spad frame before we start executing a block.
      Apart from allocations made at the epoch boundary, there should be no
@@ -1862,10 +1860,11 @@ static void
 after_frag( fd_replay_tile_ctx_t * ctx,
             ulong                  in_idx,
             ulong                  seq,
-            ulong                  sig FD_PARAM_UNUSED,
-            ulong                  sz  FD_PARAM_UNUSED,
+            ulong                  sig   FD_PARAM_UNUSED,
+            ulong                  sz    FD_PARAM_UNUSED,
             ulong                  tsorig,
-            fd_stem_context_t *    stem FD_PARAM_UNUSED ) {
+            ulong                  tspub FD_PARAM_UNUSED,
+            fd_stem_context_t *    stem  FD_PARAM_UNUSED ) {
   (void)sig;
   (void)sz;
   (void)seq;
@@ -2187,7 +2186,7 @@ init_after_snapshot( fd_replay_tile_ctx_t * ctx ) {
   /* First, load in the sysvars into the sysvar cache. This is required to
      make the StakeHistory sysvar available to the rewards calculation. */
 
-  fd_runtime_sysvar_cache_load( ctx->slot_ctx );
+  fd_runtime_sysvar_cache_load( ctx->slot_ctx, ctx->runtime_spad );
 
   /* After both snapshots have been loaded in, we can determine if we should
      start distributing rewards. */
@@ -2294,6 +2293,7 @@ init_snapshot( fd_replay_tile_ctx_t * ctx,
   ctx->slot_ctx->blockstore   = ctx->blockstore;
   ctx->slot_ctx->epoch_ctx    = ctx->epoch_ctx;
   ctx->slot_ctx->status_cache = ctx->status_cache;
+  fd_runtime_update_slots_per_epoch( ctx->slot_ctx, FD_DEFAULT_SLOTS_PER_EPOCH, ctx->runtime_spad );
 
   uchar is_snapshot = strlen( ctx->snapshot ) > 0;
   if( is_snapshot ) {
@@ -2757,7 +2757,6 @@ unprivileged_init( fd_topo_t *      topo,
   FD_SCRATCH_ALLOC_INIT( l, scratch );
   fd_replay_tile_ctx_t * ctx = FD_SCRATCH_ALLOC_APPEND( l, alignof(fd_replay_tile_ctx_t), sizeof(fd_replay_tile_ctx_t) );
   void * alloc_shmem         = FD_SCRATCH_ALLOC_APPEND( l, fd_alloc_align(), fd_alloc_footprint() );
-  void * acc_mgr_shmem       = FD_SCRATCH_ALLOC_APPEND( l, FD_ACC_MGR_ALIGN, FD_ACC_MGR_FOOTPRINT );
   void * capture_ctx_mem     = FD_SCRATCH_ALLOC_APPEND( l, FD_CAPTURE_CTX_ALIGN, FD_CAPTURE_CTX_FOOTPRINT );
   void * epoch_mem           = FD_SCRATCH_ALLOC_APPEND( l, fd_epoch_align(), fd_epoch_footprint( FD_VOTER_MAX ) );
   void * forks_mem           = FD_SCRATCH_ALLOC_APPEND( l, fd_forks_align(), fd_forks_footprint( FD_BLOCK_MAX ) );
@@ -2975,6 +2974,7 @@ unprivileged_init( fd_topo_t *      topo,
   /* joins                                                              */
   /**********************************************************************/
 
+  uchar * acc_mgr_shmem = fd_spad_alloc( ctx->runtime_spad, FD_ACC_MGR_ALIGN, FD_ACC_MGR_FOOTPRINT );
   ctx->acc_mgr       = fd_acc_mgr_new( acc_mgr_shmem, ctx->funk );
   ctx->bank_hash_cmp = fd_bank_hash_cmp_join( fd_bank_hash_cmp_new( bank_hash_cmp_mem ) );
   ctx->epoch_ctx     = fd_exec_epoch_ctx_join( fd_exec_epoch_ctx_new( epoch_ctx_mem, VOTE_ACC_MAX ) );

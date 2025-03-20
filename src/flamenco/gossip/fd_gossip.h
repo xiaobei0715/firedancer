@@ -4,6 +4,7 @@
 #include "../types/fd_types.h"
 #include "../../util/valloc/fd_valloc.h"
 #include "../../disco/metrics/generated/fd_metrics_gossip.h"
+#include "../../util/net/fd_net_headers.h" /* fd_ip4_port_t */
 
 /* Max number of validators that can be known */
 #define FD_PEER_KEY_MAX (1<<14)
@@ -23,6 +24,8 @@
 #define FD_GOSSIP_SOCKET_TAG_TPU_VOTE           (9)
 #define FD_GOSSIP_SOCKET_TAG_TVU                (10)
 #define FD_GOSSIP_SOCKET_TAG_TVU_QUIC           (11)
+
+#define FD_GOSSIP_SOCKET_TAG_MAX                (12)
 
 
 enum fd_gossip_crds_route {
@@ -45,16 +48,7 @@ fd_gossip_t * fd_gossip_join     ( void * shmap );
 void *        fd_gossip_leave    ( fd_gossip_t * join );
 void *        fd_gossip_delete   ( void * shmap );
 
-
-union fd_gossip_peer_addr {
-    struct {
-        uint   addr;  /* IPv4 address, network byte order (big endian) */
-        ushort port;  /* port number, network byte order (big endian) */
-        ushort pad;   /* Must be zero */
-    };
-    ulong l;          /* Combined port and address */
-};
-typedef union fd_gossip_peer_addr fd_gossip_peer_addr_t;
+typedef union fd_ip4_port fd_gossip_peer_addr_t;
 
 int
 fd_gossip_from_soladdr(fd_gossip_peer_addr_t * dst, fd_gossip_socket_addr_t const * src );
@@ -83,9 +77,9 @@ typedef void (*fd_gossip_sign_fun)( void * ctx, uchar * sig, uchar const * buffe
 
 struct fd_gossip_config {
     fd_pubkey_t * public_key;
-    uchar * private_key;
+    long node_outset; /* timestamp (in ms) when node's pubkey was set */
     fd_gossip_peer_addr_t my_addr;
-    fd_gossip_version_v2_t my_version;
+    fd_gossip_version_v3_t my_version;
     ushort shred_version;
     fd_gossip_data_deliver_fun deliver_fun;
     void * deliver_arg;
@@ -107,13 +101,14 @@ int fd_gossip_update_repair_addr( fd_gossip_t * glob, const fd_gossip_peer_addr_
 
 /* Update the tvu rx addr */
 int
-fd_gossip_update_tvu_addr( fd_gossip_t * glob, const fd_gossip_peer_addr_t * tvu, const fd_gossip_peer_addr_t * tvu_fwd );
+fd_gossip_update_tvu_addr( fd_gossip_t * glob,
+                           fd_gossip_peer_addr_t const * tvu );
 
 /* Update the tpu addr */
 int
 fd_gossip_update_tpu_addr( fd_gossip_t * glob,
                            fd_gossip_peer_addr_t const * tpu,
-                           fd_gossip_peer_addr_t const * tpu_fwd );
+                           fd_gossip_peer_addr_t const * tpu_quic );
 
 /* Update the tpu vote addr */
 int fd_gossip_update_tpu_vote_addr( fd_gossip_t * glob, const fd_gossip_peer_addr_t * tpu_vote );
@@ -122,7 +117,7 @@ int fd_gossip_update_tpu_vote_addr( fd_gossip_t * glob, const fd_gossip_peer_add
 void fd_gossip_set_shred_version( fd_gossip_t * glob, ushort shred_version );
 
 /* Add a peer to talk to */
-int fd_gossip_add_active_peer( fd_gossip_t * glob, fd_gossip_peer_addr_t * addr );
+int fd_gossip_add_active_peer( fd_gossip_t * glob, fd_gossip_peer_addr_t const * addr );
 
 /* Publish an outgoing value. The source id and wallclock are set by this function. The gossip key for the value is optionally returned. */
 int fd_gossip_push_value( fd_gossip_t * glob, fd_crds_data_t* data, fd_hash_t * key_opt );
@@ -152,10 +147,10 @@ void fd_gossip_set_stake_weights( fd_gossip_t * gossip, fd_stake_weight_t const 
 /* fd_gossip_set_entrypoints sets ip and ports for initial known
    validators to gossip to.  These values are set by the operator
    at startup.  This function should only be called at startup. */
-void fd_gossip_set_entrypoints( fd_gossip_t * gossip,
-                                uint const * allowed_entrypoints, /* big endian ipv4 addresses (allowed_entrypoints_cnt many) */
-                                ulong allowed_entrypoints_cnt,    /* number of allowed entrypoints, assumed to be in [1, FD_ACTIVE_KEY_MAX] */
-                                ushort const * ports );           /* gossip ports of the peers (allowed_entrypoints_cnt many) */
+void
+fd_gossip_set_entrypoints( fd_gossip_t *         gossip,
+                           fd_ip4_port_t const * entrypoints,
+                           ulong                 entrypoint_cnt );
 
 uint fd_gossip_is_allowed_entrypoint( fd_gossip_t * gossip, fd_gossip_peer_addr_t * addr );
 

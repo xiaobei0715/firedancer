@@ -55,7 +55,7 @@ get_signature_cost( fd_exec_txn_ctx_t const * txn_ctx ) {
 
   /* https://github.com/anza-xyz/agave/blob/v2.2.0/cost-model/src/cost_model.rs#L155-L160 */
   ulong ed25519_verify_cost;
-  if( FD_FEATURE_ACTIVE( txn_ctx->slot_bank->slot, txn_ctx->features, ed25519_precompile_verify_strict ) ) {
+  if( FD_FEATURE_ACTIVE( txn_ctx->slot, txn_ctx->features, ed25519_precompile_verify_strict ) ) {
     ed25519_verify_cost = fd_ulong_sat_mul( FD_PACK_COST_PER_ED25519_SIGNATURE, num_ed25519_instruction_signatures );
   } else {
     ed25519_verify_cost = fd_ulong_sat_mul( FD_PACK_COST_PER_NON_STRICT_ED25519_SIGNATURE, num_ed25519_instruction_signatures );
@@ -63,7 +63,7 @@ get_signature_cost( fd_exec_txn_ctx_t const * txn_ctx ) {
 
   /* https://github.com/anza-xyz/agave/blob/v2.2.0/cost-model/src/cost_model.rs#L162-L167 */
   ulong secp256r1_verify_cost = 0UL;
-  if( FD_FEATURE_ACTIVE( txn_ctx->slot_bank->slot, txn_ctx->features, enable_secp256r1_precompile ) ) {
+  if( FD_FEATURE_ACTIVE( txn_ctx->slot, txn_ctx->features, enable_secp256r1_precompile ) ) {
     secp256r1_verify_cost = fd_ulong_sat_mul( FD_PACK_COST_PER_SECP256R1_SIGNATURE, num_secp256r1_instruction_signatures );
   }
 
@@ -221,7 +221,7 @@ get_allocated_accounts_data_size( fd_transaction_cost_t const * self ) {
 }
 
 /* https://github.com/anza-xyz/agave/blob/v2.2.0/cost-model/src/cost_tracker.rs#L277-L322 */
-FD_FN_PURE static inline int
+static inline int
 would_fit( fd_cost_tracker_t const *     self,
            fd_exec_txn_ctx_t const *     txn_ctx,
            fd_transaction_cost_t const * tx_cost ) {
