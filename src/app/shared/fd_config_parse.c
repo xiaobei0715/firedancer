@@ -346,6 +346,8 @@ fdctl_pod_to_cfg( config_t * config,
   CFG_POP      ( bool,   development.bootstrap                            );
 
   CFG_POP      ( cstr,   development.net.provider                         );
+  CFG_POP      ( uint,   development.net.sock_receive_buffer_size         );
+  CFG_POP      ( uint,   development.net.sock_send_buffer_size            );
 
   CFG_POP      ( bool,   development.netns.enabled                        );
   CFG_POP      ( cstr,   development.netns.interface0                     );
@@ -423,6 +425,8 @@ fdctl_pod_to_cfg( config_t * config,
   CFG_POP      ( bool,   tiles.restart.in_wen_restart                     );
   CFG_POP      ( cstr,   tiles.restart.wen_restart_coordinator            );
   CFG_POP      ( cstr,   tiles.restart.genesis_hash                       );
+
+  CFG_POP      ( bool,   tiles.archiver.playback                          );
 
 # undef CFG_POP
 # undef CFG_ARRAY
@@ -513,6 +517,8 @@ fdctl_cfg_validate( config_t * cfg ) {
       strcmp( cfg->development.net.provider, "socket" ) ) {
     FD_LOG_ERR(( "invalid `development.net.provider`: must be \"xdp\" or \"socket\"" ));
   }
+  CFG_HAS_NON_ZERO( development.net.sock_receive_buffer_size );
+  CFG_HAS_NON_ZERO( development.net.sock_send_buffer_size );
 
   CFG_HAS_NON_EMPTY( development.netns.interface0 );
   CFG_HAS_NON_EMPTY( development.netns.interface0_mac );
